@@ -12,9 +12,10 @@ script, and then read with screen reader.
 from bs4 import BeautifulSoup
 import re
 import argparse
-
+import subprocess
+import os
 # 1 run
-#"pdftohtml -i -s %s output"
+#
 # now we have created an index
 # outputs.html
 # and the actual page content
@@ -28,9 +29,11 @@ def get_section_titles(html_filename, search_terms):
             match = soup.find('li', text=re.compile(term, re.I))
             if not match:
                 continue
-            # seems that next_sibling is the \s inbetween
-            # so skip twice to get to the true next sibling
-            sections[i] = (match.get_text(), match.next_sibling.next_sibling.get_text())
+
+            next_li = match.find_next("li")
+            if next_li:
+                next_li = next_li.get_text()
+            sections[i] = (match.get_text(), next_li)
 
         return [('abstract', soup.find('li').get_text())] + sections
         
@@ -76,23 +79,34 @@ if next_section_title is None, will go until end of text
         print(section_title, ">", next_section_title)
         return ""
     return text[start:end]
-    
+
+def remove_intermediaries(output_tmp_name):
+    # remove intermediary files
+    for filename in [output_tmp_name + "s.html", output_tmp_name + "-html.html"]:
+        if os.path.exists(filename):
+            os.remove(filename)
+
+
 def main(args):
+    # first convert pdf into 2 html documents
+    output_tmp_name = "/tmp/output"
+    subprocess.run(["pdftohtml", "-i", "-s", args.pdf, output_tmp_name], capture_output=True)
+    
     # things we want to pull out
     # Title, Author, Universities, Abstract, Introduction, conclusion
     sections_to_find = ["intro", "conclu"]
     # gets: Abstract, Introduction, Conclusion
-    sections = get_section_titles(args.index, sections_to_find)
-    print(sections)
-    text = convert_html_to_text(args.html)
+    sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
+    text = convert_html_to_text(output_tmp_name + "-html.html")
 
-    for (start, end) in sections:
+    for i, (start, end) in enumerate(sections):
         print(find_section(text, start, end))
+
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    #parser.add_argument('--pdf', help='the pdf of the paper to summarize like ./test.pdf')
-    parser.add_argument('--html', help='temp arg; output-html.html')
-    parser.add_argument('--index', help='temp arg; outputs.html')
+    parser.add_argument('--pdf', help='the pdf of the paper to summarize like ./test.pdf')
+    #parser.add_argument('--html', help='temp arg; output-html.html')
+    #parser.add_argument('--index', help='temp arg; outputs.html')
     args = parser.parse_args()
     main(args)
