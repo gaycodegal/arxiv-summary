@@ -25,9 +25,14 @@ def get_section_titles(html_filename, search_terms):
         soup = BeautifulSoup(html, 'html.parser')
         sections = [None] * len(search_terms)
         for i, term in enumerate(search_terms):
-            sections[i] = soup.find(text=re.compile(term, re.I))
+            match = soup.find('li', text=re.compile(term, re.I))
+            if not match:
+                continue
+            # seems that next_sibling is the \s inbetween
+            # so skip twice to get to the true next sibling
+            sections[i] = (match.get_text(), match.next_sibling.next_sibling.get_text())
 
-        return sections
+        return [('abstract', soup.find('li').get_text())] + sections
         
 
 def convert_html_to_text(filename):
@@ -76,12 +81,13 @@ def main(args):
     # things we want to pull out
     # Title, Author, Universities, Abstract, Introduction, conclusion
     sections_to_find = ["intro", "conclu"]
-    print(get_section_titles(args.index, sections_to_find))
-    sections = ["abstract", "1. Introduction", "2. Galerkin spectral projections"]
+    # gets: Abstract, Introduction, Conclusion
+    sections = get_section_titles(args.index, sections_to_find)
+    print(sections)
     text = convert_html_to_text(args.html)
-    return
-    for i in range(len(sections) - 1):
-        print(find_section(text, sections[i], sections[i + 1]))
+
+    for (start, end) in sections:
+        print(find_section(text, start, end))
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
