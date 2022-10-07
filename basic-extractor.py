@@ -8,6 +8,8 @@ physics papers that seem to have been generated with LaTeX.
 
 The pipeline is intended to be download PDF, run this
 script, and then read with screen reader.
+
+relies on pdftohtml being installed
 """
 from bs4 import BeautifulSoup
 import re
@@ -41,6 +43,14 @@ def get_section_titles(html_filename, search_terms):
 def convert_html_to_text(filename):
     with open(filename, "r") as html:
         soup = BeautifulSoup(html, 'html.parser')
+
+        # pdftohtml writes <filename> in the title elements
+        # and sprinkles them throughout the file.
+        # not useful so remove them
+        titles= soup.find_all('title')
+        for title in titles:
+            title.extract()
+
         return soup.get_text()
 
 dotted_number = re.compile('((?:\d+\.?)+)')
@@ -107,8 +117,6 @@ def main(args):
     # gets: Abstract, Introduction, Conclusion
     sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
     text = convert_html_to_text(output_tmp_name + "-html.html")
-    with open(output_tmp_name + ".txt", "w") as tmp_out:
-        tmp_out.write(text)
 
     for i, section in enumerate(sections):
         if section is None:
@@ -119,11 +127,15 @@ def main(args):
     # cleanup
     if args.clean:
         remove_intermediaries(output_tmp_name)
+    if args.debug_text:
+        with open(output_tmp_name + ".txt", "w") as tmp_out:
+            tmp_out.write(text)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pdf', help='the pdf of the paper to summarize like ./test.pdf')
     parser.add_argument('--clean', help='whether to keep intermediary files', default=True, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--debug-text', help='whether to write /tmp/output.txt debug file', default=False, action=argparse.BooleanOptionalAction)
     #parser.add_argument('--html', help='temp arg; output-html.html')
     #parser.add_argument('--index', help='temp arg; outputs.html')
     args = parser.parse_args()
