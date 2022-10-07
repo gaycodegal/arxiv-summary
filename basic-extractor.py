@@ -90,6 +90,7 @@ def remove_intermediaries(output_tmp_name):
 def main(args):
     # first convert pdf into 2 html documents
     output_tmp_name = "/tmp/output"
+    remove_intermediaries(output_tmp_name)
     subprocess.run(["pdftohtml", "-i", "-s", args.pdf, output_tmp_name], capture_output=True)
     
     # things we want to pull out
@@ -99,13 +100,20 @@ def main(args):
     sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
     text = convert_html_to_text(output_tmp_name + "-html.html")
 
-    for i, (start, end) in enumerate(sections):
+    for i, section in enumerate(sections):
+        if section is None:
+            continue
+        start, end = section
         print(find_section(text, start, end))
 
+    # cleanup
+    if args.clean:
+        remove_intermediaries(output_tmp_name)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pdf', help='the pdf of the paper to summarize like ./test.pdf')
+    parser.add_argument('--clean', help='whether to keep intermediary files', default=True, action=argparse.BooleanOptionalAction)
     #parser.add_argument('--html', help='temp arg; output-html.html')
     #parser.add_argument('--index', help='temp arg; outputs.html')
     args = parser.parse_args()
