@@ -28,13 +28,13 @@ def get_section_titles(html_filename, search_terms):
         for i, term in enumerate(search_terms):
             match = soup.find('li', text=re.compile(term, re.I))
             if not match:
+                print("could not find '{}'".format(term))
                 continue
 
             next_li = match.find_next("li")
             if next_li:
-                next_li = next_li.get_text()
-            sections[i] = (match.get_text(), next_li)
-
+                next_li = next_li.find('a').get_text()
+            sections[i] = [match.find('a').get_text(), next_li]
         return [('abstract', soup.find('li').get_text())] + sections
         
 
@@ -43,8 +43,16 @@ def convert_html_to_text(filename):
         soup = BeautifulSoup(html, 'html.parser')
         return soup.get_text()
 
+dotted_number = re.compile('((?:\d+\.?)+)')
+def number_dotter(match):
+    return match.group(0) + "\.?"
 def get_section_search_regex(section_title):
-    return re.escape(section_title).replace("\ ", "\s")
+    # hack as some papers seem to have '1 title' in the TOC
+    # but '1. title' in the paper
+    # brittle AF
+    section_title = re.escape(section_title)
+    section_title = dotted_number.sub(number_dotter, section_title)
+    return section_title.replace("\ ", "\s")
     
 def find_section(text, section_title, next_section_title = None):
     """
@@ -62,14 +70,14 @@ if next_section_title is None, will go until end of text
     re_section_title = get_section_search_regex(section_title)
     start = re.search(re_section_title, text, re.M | re.I)
     if not start:
-        print(section_title, "not found")
+        print("'{}' not found".format(section_title))
         return ""
     end = len(text) - 1
     if next_section_title is not None:
         re_next_section_title = get_section_search_regex(next_section_title)
         end = re.search(re_next_section_title, text, re.M | re.I)
         if not end:
-            print(next_section_title, "not found")
+            print("'{}' not found".format(next_section_title))
             return ""
         end = end.start()
 
@@ -82,7 +90,7 @@ if next_section_title is None, will go until end of text
 
 def remove_intermediaries(output_tmp_name):
     # remove intermediary files
-    for filename in [output_tmp_name + "s.html", output_tmp_name + "-html.html"]:
+    for filename in [output_tmp_name + "s.html", output_tmp_name + "-html.html", output_tmp_name + ".txt"]:
         if os.path.exists(filename):
             os.remove(filename)
 
@@ -99,6 +107,8 @@ def main(args):
     # gets: Abstract, Introduction, Conclusion
     sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
     text = convert_html_to_text(output_tmp_name + "-html.html")
+    with open(output_tmp_name + ".txt", "w") as tmp_out:
+        tmp_out.write(text)
 
     for i, section in enumerate(sections):
         if section is None:
