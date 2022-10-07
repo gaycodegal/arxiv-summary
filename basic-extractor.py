@@ -20,9 +20,18 @@ import argparse
 # and the actual page content
 # output-html.html
 
+def get_section_titles(html_filename, search_terms):
+    with open(html_filename, "r") as html:
+        soup = BeautifulSoup(html, 'html.parser')
+        sections = [None] * len(search_terms)
+        for i, term in enumerate(search_terms):
+            sections[i] = soup.find(text=re.compile(term, re.I))
 
-def convert_html_to_text(file_name):
-    with open(file_name, "r") as html:
+        return sections
+        
+
+def convert_html_to_text(filename):
+    with open(filename, "r") as html:
         soup = BeautifulSoup(html, 'html.parser')
         return soup.get_text()
 
@@ -63,11 +72,14 @@ if next_section_title is None, will go until end of text
         return ""
     return text[start:end]
     
-def main(html_name):
-    #Title, Author, Universities, Abstract, Introduction, conclusion
+def main(args):
+    # things we want to pull out
+    # Title, Author, Universities, Abstract, Introduction, conclusion
     sections_to_find = ["intro", "conclu"]
+    print(get_section_titles(args.index, sections_to_find))
     sections = ["abstract", "1. Introduction", "2. Galerkin spectral projections"]
-    text = convert_html_to_text(html_name)
+    text = convert_html_to_text(args.html)
+    return
     for i in range(len(sections) - 1):
         print(find_section(text, sections[i], sections[i + 1]))
     
@@ -77,4 +89,4 @@ if __name__ == "__main__":
     parser.add_argument('--html', help='temp arg; output-html.html')
     parser.add_argument('--index', help='temp arg; outputs.html')
     args = parser.parse_args()
-    main(args.html)
+    main(args)
