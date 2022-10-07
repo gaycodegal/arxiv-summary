@@ -124,7 +124,7 @@ def main(args):
     # Title, Author, Universities, Abstract, Introduction, conclusion
 
     # gets: Abstract, Introduction, Conclusion
-    sections_to_find = ["intro", "conclu"]
+    sections_to_find = ["intro", "conclu", "summary"]
     sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
     text = convert_html_to_text(output_tmp_name + "-html.html")
 
