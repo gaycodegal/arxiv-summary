@@ -16,14 +16,13 @@ import re
 import argparse
 import subprocess
 import os
-# 1 run
-#
-# now we have created an index
-# outputs.html
-# and the actual page content
-# output-html.html
 
 def get_section_titles(html_filename, search_terms):
+    """gets the section titles from s.html based on
+both search terms, as well as the abstract.
+
+returns a set of terms which define ranges to copy text
+from. May return (a, b) (a, None) or None"""
     with open(html_filename, "r") as html:
         soup = BeautifulSoup(html, 'html.parser')
         sections = [None] * len(search_terms)
@@ -41,6 +40,7 @@ def get_section_titles(html_filename, search_terms):
         
 
 def convert_html_to_text(filename):
+    """converts -html.html to text"""
     with open(filename, "r") as html:
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -55,8 +55,12 @@ def convert_html_to_text(filename):
 
 dotted_number = re.compile('((?:\d+\.?)+)')
 def number_dotter(match):
+    """replacer function 1 -> 1\.?"""
     return match.group(0) + "\.?"
 def get_section_search_regex(section_title):
+    """replaces spaces with \s to aid in newline avoidance
+an puts an optional period after the first number just
+in case"""
     # hack as some papers seem to have '1 title' in the TOC
     # but '1. title' in the paper
     # brittle AF
@@ -110,11 +114,17 @@ def main(args):
     output_tmp_name = "/tmp/output"
     remove_intermediaries(output_tmp_name)
     subprocess.run(["pdftohtml", "-i", "-s", args.pdf, output_tmp_name], capture_output=True)
+    # now we have created an index
+    # outputs.html
+    # and the actual page content
+    # output-html.html
+
     
     # things we want to pull out
     # Title, Author, Universities, Abstract, Introduction, conclusion
-    sections_to_find = ["intro", "conclu"]
+
     # gets: Abstract, Introduction, Conclusion
+    sections_to_find = ["intro", "conclu"]
     sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
     text = convert_html_to_text(output_tmp_name + "-html.html")
 
@@ -136,7 +146,5 @@ if __name__ == "__main__":
     parser.add_argument('--pdf', help='the pdf of the paper to summarize like ./test.pdf')
     parser.add_argument('--clean', help='whether to keep intermediary files', default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument('--debug-text', help='whether to write /tmp/output.txt debug file', default=False, action=argparse.BooleanOptionalAction)
-    #parser.add_argument('--html', help='temp arg; output-html.html')
-    #parser.add_argument('--index', help='temp arg; outputs.html')
     args = parser.parse_args()
     main(args)
