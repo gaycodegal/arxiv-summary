@@ -49,12 +49,12 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --out-folder OUT_FOLDER
-                        folder in which to store summarized texts
+                        folder in which to store summarized texts (default: ./)
   --clean, --no-clean   whether to delete intermediary files (default: True)
   --debug-text, --no-debug-text
                         whether to write /tmp/output.txt debug file (default: False)
   --temp-prefix TEMP_PREFIX
-                        destination of temporary files, prefix
+                        destination of temporary files, prefix (default: /tmp/output)
 ```
 
 ## Text to speech

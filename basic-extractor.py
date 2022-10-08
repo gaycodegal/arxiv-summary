@@ -393,7 +393,7 @@ if __name__ == "__main__":
         nargs='+')
     parser.add_argument(
         '--out-folder',
-        help='folder in which to store summarized texts',
+        help='folder in which to store summarized texts (default: ./)',
         default="./")
     parser.add_argument(
         '--clean',
@@ -407,7 +407,7 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction)
     parser.add_argument(
         '--temp-prefix',
-        help='destination of temporary files, prefix',
+        help='destination of temporary files, prefix (default: /tmp/output)',
         default='/tmp/output')
     args = parser.parse_args()
     main(args)
