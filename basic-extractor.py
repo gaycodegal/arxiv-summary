@@ -20,7 +20,8 @@ import argparse
 import subprocess
 import os
 
-def get_section_titles(html_filename, search_terms):
+abstract_regex = re.compile('abstract|overview', re.I)
+def get_section_titles(html_filename, search_terms, el_type = 'li'):
     """gets the section titles from s.html based on
 both search terms, as well as the abstract.
 
@@ -32,18 +33,45 @@ from. May return (a, b) (a, None) or None"""
         soup = BeautifulSoup(html, 'html.parser')
         sections = [None] * len(search_terms)
         for i, term in enumerate(search_terms):
-            match = soup.find('li', text=re.compile(term, re.I))
+            match = soup.find(el_type, text=re.compile(term, re.I))
             if not match:
                 print("could not find '{}'".format(term))
                 continue
 
-            next_li = match.find_next("li")
+            next_li = match.find_next(el_type)
             if next_li:
-                next_li = next_li.find('a').get_text()
-            sections[i] = [match.find('a').get_text(), next_li]
-        last_li = soup.find_all('li')[-1].get_text()
-        
-        return [('abstract', soup.find('li').get_text())] + sections, last_li
+                if el_type == 'li':
+                    next_li = next_li.find('a').get_text()
+                else:
+                    next_li = next_li.get_text()
+            if el_type == 'li':
+                sections[i] = [match.find('a').get_text(), next_li]
+            else:
+                sections[i] = [match.get_text(), next_li]
+        last_li = soup.find_all(el_type)
+        if last_li is not None and len(last_li) > 1:
+            last_li = last_li[-1].get_text()
+        else:
+            last_li = None
+        next_after_abstract = None
+        if el_type == 'li':
+            next_after_abstract = soup.find(el_type).find('a').get_text()
+        else:
+            # we're searching the paper itself for headers
+            # this time, instead of the li document overview
+            # and thus logic is more complicated
+            abstract = soup.find(text=abstract_regex)
+            if abstract is not None:
+                abstract = abstract.find_parent(el_type)
+                if abstract is not None:
+                    next_after_abstract = abstract.find_next(el_type)
+                if next_after_abstract is not None:
+                    next_after_abstract = next_after_abstract.get_text()
+            if next_after_abstract == None:
+                next_after_abstract = soup.find_next(el_type)
+                if next_after_abstract is not None:
+                    next_after_abstract = next_after_abstract.get_text()
+        return [(abstract_regex, next_after_abstract)] + sections, last_li
         
 
 def convert_html_to_text(filename):
@@ -89,22 +117,38 @@ whole title segments being in different <p> tags
 if next_section_title is None, will go until end of text
     """
     # convert "hi you" into "hi\syou" but safely
-    re_section_title = get_section_search_regex(section_title)
-    start = re.search(re_section_title, text, re.M | re.I)
+    start = None
+    re_section_title = section_title
+    if type(re_section_title) == str:
+        re_section_title = get_section_search_regex(section_title)
+        start = re.search(re_section_title, text, re.M | re.I)
+    else:
+        start = re_section_title.search(text)
     if not start:
         print("'{}' not found".format(section_title))
         return ""
-    end = len(text) - 1
-    if next_section_title is not None:
-        re_next_section_title = get_section_search_regex(next_section_title)
-        end = re.search(re_next_section_title, text, re.M | re.I)
-        if not end:
-            print("'{}' not found".format(next_section_title))
-            return ""
-        end = end.start()
 
     # include the title of the section
     start = start.start()
+
+    end = 0
+    # in case start >= end, keep trying to find a later instance
+    # of the next_section_title
+    if next_section_title is not None:
+        re_next_section_title = next_section_title
+        if type(re_next_section_title) == str:
+            re_next_section_title = get_section_search_regex(next_section_title)
+            re_next_section_title = re.compile(re_next_section_title, re.M | re.I)
+        while (end is not None) and (end < start):
+            end = re_next_section_title.search(text, pos = end + 1)
+            if end is not None:
+                end = end.start()
+        if not end:
+            print("'{}' not found (end '{}')".format(next_section_title, section_title))
+            return ""
+    else:
+        end = len(text) - 1
+
     if start >= end:
         print(section_title, ">", next_section_title)
         return ""
@@ -172,6 +216,7 @@ def extract_known_titled_sections(out, sections, text):
             continue
         start, end = section
         out.write(find_section(text, start, end))
+        out.write("\n\n")
 
 used_titles = {}
 def get_paper_txt_handle(args, title):
@@ -212,10 +257,15 @@ def extract_one_paper(paper_path, args, i):
     metadata = None
 
     text = convert_html_to_text(output_tmp_name + "-html.html")
-    sections_to_find = ["intro", "conclu|summary"]
+    sections_to_find = ["intro", "conclu|summary|finding"]
     sections, last_section = get_section_titles(output_tmp_name + "s.html", sections_to_find)
+    if sections.count(None) == len(sections_to_find):
+        print("could not find any titles, searching again")
+        sections, last_section = get_section_titles(output_tmp_name + "-html.html", sections_to_find, 'b')
 
     # attempt to remove references first (you wouldn't want to hear them in TTS)
+
+    # last section index compared so that we don't remove text we're searching for
     last_section_index = -1
     if last_section is not None:
         last_section_index = text.rfind(last_section) + len(last_section)
