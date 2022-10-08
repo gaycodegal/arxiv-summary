@@ -195,14 +195,17 @@ if next_section_title is None, will go until end of text
     if next_section_title is not None:
         re_next_section_title = next_section_title
         if type(re_next_section_title) == str:
-            re_next_section_title = get_section_search_regex(next_section_title)
-            re_next_section_title = re.compile(re_next_section_title, re.M | re.I)
+            re_next_section_title = get_section_search_regex(
+                next_section_title)
+            re_next_section_title = re.compile(
+                re_next_section_title, re.M | re.I)
         while (end is not None) and (end < start):
             end = re_next_section_title.search(text, pos = end + 1)
             if end is not None:
                 end = end.start()
         if not end:
-            print("'{}' not found (end '{}')".format(next_section_title, section_title))
+            print("'{}' not found (end '{}')".format(
+                next_section_title, section_title))
             return ""
     else:
         end = len(text) - 1
@@ -215,7 +218,10 @@ if next_section_title is None, will go until end of text
 def remove_intermediaries(output_tmp_name):
     """delete various temporary files created
 during pdf conversion"""
-    for filename in [output_tmp_name + "s.html", output_tmp_name + "-html.html", output_tmp_name + ".txt"]:
+    for filename in [
+            output_tmp_name + "s.html",
+            output_tmp_name + "-html.html",
+            output_tmp_name + ".txt"]:
         if os.path.exists(filename):
             os.remove(filename)
 
@@ -300,7 +306,9 @@ def extract_one_paper(paper_path, args, i):
     # first convert pdf into 2 html documents
     output_tmp_name = args.temp_prefix
     remove_intermediaries(output_tmp_name)
-    subprocess.run(["pdftohtml", "-i", "-s", paper_path, output_tmp_name], capture_output=True)
+    subprocess.run(
+        ["pdftohtml", "-i", "-s", paper_path, output_tmp_name],
+        capture_output=True)
     # now we have created an index
     # outputs.html
     # and the actual page content
@@ -330,20 +338,30 @@ def extract_one_paper(paper_path, args, i):
     # try to find section headers as bolded text
     if sections.count(None) == len(sections_to_find):
         print("searching for bolded titles")
-        sections, last_section = get_section_titles_from_paper(output_tmp_name + "-html.html", sections_to_find, 'b')
+        sections, last_section = get_section_titles_from_paper(
+            output_tmp_name + "-html.html",
+            sections_to_find,
+            'b')
     # try to find section headers as 1.2.3\ntitle
     if sections.count(None) == len(sections_to_find):
         print("attempting raw text title extraction")
-        sections, last_section = get_section_titles_from_raw_text(text, sections_to_find)
+        sections, last_section = get_section_titles_from_raw_text(
+            text,
+            sections_to_find)
 
-    # attempt to remove references first (you wouldn't want to hear them in TTS)
+    # attempt to remove references first
+    # (you wouldn't want to hear them in TTS)
 
-    # last section index compared so that we don't remove text we're searching for
+    # last section index compared so that we don't
+    # remove text we're searching for
     last_section_index = -1
     if last_section is not None:
         last_section_index = text.rfind(last_section) + len(last_section)
     text_lower = text.lower()
-    last_reference_index = max(text_lower.rfind("reference"), text_lower.rfind("bibliography"), last_section_index)
+    last_reference_index = max(
+        text_lower.rfind("reference"),
+        text_lower.rfind("bibliography"),
+        last_section_index)
     text_lower = None
     if last_reference_index > 0:
         text = text[:last_reference_index]
@@ -369,10 +387,27 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('pdf', help='the pdf of the paper to summarize like ./test.pdf', nargs='+')
-    parser.add_argument('--out-folder', help='folder in which to store summarized texts', default="./")
-    parser.add_argument('--clean', help='whether to delete intermediary files', default=True, action=argparse.BooleanOptionalAction)
-    parser.add_argument('--debug-text', help='whether to write /tmp/output.txt debug file', default=False, action=argparse.BooleanOptionalAction)
-    parser.add_argument('--temp-prefix', help='destination of temporary files, prefix', default='/tmp/output')
+    parser.add_argument(
+        'pdf',
+        help='the pdf of the paper to summarize like ./test.pdf',
+        nargs='+')
+    parser.add_argument(
+        '--out-folder',
+        help='folder in which to store summarized texts',
+        default="./")
+    parser.add_argument(
+        '--clean',
+        help='whether to delete intermediary files',
+        default=True,
+        action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        '--debug-text',
+        help='whether to write /tmp/output.txt debug file',
+        default=False,
+        action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        '--temp-prefix',
+        help='destination of temporary files, prefix',
+        default='/tmp/output')
     args = parser.parse_args()
     main(args)
