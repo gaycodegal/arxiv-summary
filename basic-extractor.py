@@ -55,7 +55,9 @@ from. May return (a, b) (a, None) or None"""
             last_li = None
         next_after_abstract = None
         if el_type == 'li':
-            next_after_abstract = soup.find(el_type).find('a').get_text()
+            next_after_abstract = soup.find(el_type)
+            if next_after_abstract is not None:
+                next_after_abstract = next_after_abstract.find('a').get_text()
         else:
             # we're searching the paper itself for headers
             # this time, instead of the li document overview
@@ -287,7 +289,10 @@ def extract_one_paper(paper_path, args, i):
 
 def main(args):
     for i, pdf in enumerate(args.pdf):
-        extract_one_paper(pdf, args, i + 1)
+        try:
+            extract_one_paper(pdf, args, i + 1)
+        except:
+            pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
