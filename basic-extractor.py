@@ -53,7 +53,7 @@ from. May return (a, b) (a, None) or None"""
         if next_after_abstract is not None:
             next_after_abstract = next_after_abstract.find('a').get_text()
 
-        return [(abstract_regex, next_after_abstract)] + sections, last_li
+        return [[abstract_regex, next_after_abstract]] + sections, last_li
 
 def get_section_titles_from_paper(html_filename, search_terms, el_type = 'b'):
     """gets the section titles from -html.html based on
@@ -96,7 +96,40 @@ from. May return (a, b) (a, None) or None"""
             next_after_abstract = soup.find_next(el_type)
             if next_after_abstract is not None:
                 next_after_abstract = next_after_abstract.get_text()
-        return [(abstract_regex, next_after_abstract)] + sections, last_el
+        return [[abstract_regex, next_after_abstract]] + sections, last_el
+
+re_title_raw = re.compile('^(?:\d+\.?)+\n(?:\w\ ?)+', re.M)
+def get_section_titles_from_raw_text(text, headers_to_find):
+    """gets the section titles from raw text of -html.html
+based on both search terms, as well as the abstract.
+
+search terms is a list of regexes to search for
+
+returns a set of terms which define ranges to copy text
+from. May return (a, b) (a, None) or None"""
+    # hope that 1.1.1\nHeader is what the header format is
+    headers = re_title_raw.findall(text)
+    sections = [None] * len(headers_to_find)
+
+    # compare all headers with all search terms
+    for term_i, term in enumerate(headers_to_find):
+        for header_i, header in enumerate(headers):
+            if re.search(term, header, re.I | re.M):
+                next_header = None
+                if header_i + 1 < len(headers):
+                    next_header = headers[header_i + 1]
+                sections[term_i] = [header, next_header]
+        if sections[term_i] is None:
+            print("could not find '{}'".format(term))
+
+    # abstract still probably wont have a number but at least
+    # we know what its called well.
+    last_header = None
+    abstract_region = [abstract_regex, None]
+    if len(headers) > 0:
+        abstract_region[1] = headers[0]
+        last_header = headers[-1]
+    return [abstract_region] + sections, last_header
         
 
 def convert_html_to_text(filename):
@@ -222,10 +255,12 @@ def extract_initial_metadata(output_tmp_name):
 
         # get everything before abstract
         abstract = soup.find(text=re.compile("abstract", re.I))
+        paragraphs = None
         if abstract is None:
-            return "no metadata found"
-        abstract = abstract.find_parent("p")
-        paragraphs = abstract.find_all_previous("p")
+            paragraphs = soup.find_all("p")[:3][::-1]
+        else:
+            abstract = abstract.find_parent("p")
+            paragraphs = abstract.find_all_previous("p")
         # reverse the list because we were searching backwards
         paragraphs = [p.get_text() for p in paragraphs][::-1]
         paragraphs = filter(is_desired_paragraph, paragraphs)
@@ -243,7 +278,9 @@ def extract_known_titled_sections(out, sections, text):
         out.write(find_section(text, start, end))
         out.write("\n\n")
 
+# keeps track of titles so we don't overwrite a file
 used_titles = {}
+re_valid_filename = re.compile(r'[^\w\d-]')
 def get_paper_txt_handle(args, title):
     """use the title as the name of the file,
 but if multiple papers have the same title,
@@ -275,9 +312,10 @@ def extract_one_paper(paper_path, args, i):
     # Title, Author, Universities
     metadata = extract_initial_metadata(output_tmp_name)
     title = metadata.split("\n")[0]
+    title = re_valid_filename.sub('_', title)
     print("processing '{new_title}' ({src_title}) ({n}/{total})".format(
         new_title=title[:30] + "...",
-        src_title=os.path.split(paper_path)[-1],
+        src_title=os.path.split(paper_path)[-1][:10] + "...",
         n=i,
         total=len(args.pdf)))
     out = get_paper_txt_handle(args, title)
@@ -289,9 +327,14 @@ def extract_one_paper(paper_path, args, i):
     sections_to_find = ["intro", "conclu|summary|finding"]
     sections, last_section = get_section_titles_from_overview(
         output_tmp_name + "s.html", sections_to_find)
+    # try to find section headers as bolded text
     if sections.count(None) == len(sections_to_find):
-        print("could not find any titles, searching again")
+        print("searching for bolded titles")
         sections, last_section = get_section_titles_from_paper(output_tmp_name + "-html.html", sections_to_find, 'b')
+    # try to find section headers as 1.2.3\ntitle
+    if sections.count(None) == len(sections_to_find):
+        print("attempting raw text title extraction")
+        sections, last_section = get_section_titles_from_raw_text(text, sections_to_find)
 
     # attempt to remove references first (you wouldn't want to hear them in TTS)
 
