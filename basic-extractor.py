@@ -41,7 +41,9 @@ from. May return (a, b) (a, None) or None"""
             if next_li:
                 next_li = next_li.find('a').get_text()
             sections[i] = [match.find('a').get_text(), next_li]
-        return [('abstract', soup.find('li').get_text())] + sections
+        last_li = soup.find_all('li')[-1].get_text()
+        
+        return [('abstract', soup.find('li').get_text())] + sections, last_li
         
 
 def convert_html_to_text(filename):
@@ -150,7 +152,10 @@ def extract_initial_metadata(output_tmp_name):
         soup = BeautifulSoup(html, 'html.parser')
 
         # get everything before abstract
-        abstract = soup.find("p", text = re.compile("abstract", re.I))
+        abstract = soup.find(text=re.compile("abstract", re.I))
+        if abstract is None:
+            return "no metadata found"
+        abstract = abstract.find_parent("p")
         paragraphs = abstract.find_all_previous("p")
         # reverse the list because we were searching backwards
         paragraphs = [p.get_text() for p in paragraphs][::-1]
@@ -159,10 +164,8 @@ def extract_initial_metadata(output_tmp_name):
         return "\n".join(paragraphs)
 
 
-def extract_known_titled_sections(out, output_tmp_name, text):
+def extract_known_titled_sections(out, sections, text):
     """gets: Abstract, Introduction, Conclusion"""
-    sections_to_find = ["intro", "conclu|summary"]
-    sections = get_section_titles(output_tmp_name + "s.html", sections_to_find)
 
     for i, section in enumerate(sections):
         if section is None:
@@ -209,14 +212,21 @@ def extract_one_paper(paper_path, args, i):
     metadata = None
 
     text = convert_html_to_text(output_tmp_name + "-html.html")
+    sections_to_find = ["intro", "conclu|summary"]
+    sections, last_section = get_section_titles(output_tmp_name + "s.html", sections_to_find)
 
     # attempt to remove references first (you wouldn't want to hear them in TTS)
-    last_reference_index = text.lower().rfind("reference")
+    last_section_index = -1
+    if last_section is not None:
+        last_section_index = text.rfind(last_section) + len(last_section)
+    text_lower = text.lower()
+    last_reference_index = max(text_lower.rfind("reference"), text_lower.rfind("bibliography"), last_section_index)
+    text_lower = None
     if last_reference_index > 0:
         text = text[:last_reference_index]
 
     # Abstract, Introduction, conclusion
-    extract_known_titled_sections(out, output_tmp_name, text)
+    extract_known_titled_sections(out, sections, text)
 
     # cleanup
     if args.clean:
