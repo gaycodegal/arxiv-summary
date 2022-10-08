@@ -19,10 +19,44 @@ import re
 import argparse
 import subprocess
 import os
+import traceback
 
 abstract_regex = re.compile('abstract|overview', re.I)
-def get_section_titles(html_filename, search_terms, el_type = 'li'):
+def get_section_titles_from_overview(html_filename, search_terms):
     """gets the section titles from s.html based on
+both search terms, as well as the abstract.
+
+search terms is a list of regexes to search for
+
+returns a set of terms which define ranges to copy text
+from. May return (a, b) (a, None) or None"""
+    with open(html_filename, "r") as html:
+        soup = BeautifulSoup(html, 'html.parser')
+        sections = [None] * len(search_terms)
+        for i, term in enumerate(search_terms):
+            match = soup.find('li', text=re.compile(term, re.I))
+            if not match:
+                print("could not find '{}'".format(term))
+                continue
+
+            next_li = match.find_next('li')
+            if next_li:
+                next_li = next_li.find('a').get_text()
+            sections[i] = [match.find('a').get_text(), next_li]
+        last_li = soup.find_all('li')
+        if last_li is not None and len(last_li) > 1:
+            last_li = last_li[-1].get_text()
+        else:
+            last_li = None
+
+        next_after_abstract = soup.find('li')
+        if next_after_abstract is not None:
+            next_after_abstract = next_after_abstract.find('a').get_text()
+
+        return [(abstract_regex, next_after_abstract)] + sections, last_li
+
+def get_section_titles_from_paper(html_filename, search_terms, el_type = 'b'):
+    """gets the section titles from -html.html based on
 both search terms, as well as the abstract.
 
 search terms is a list of regexes to search for
@@ -38,42 +72,31 @@ from. May return (a, b) (a, None) or None"""
                 print("could not find '{}'".format(term))
                 continue
 
-            next_li = match.find_next(el_type)
-            if next_li:
-                if el_type == 'li':
-                    next_li = next_li.find('a').get_text()
-                else:
-                    next_li = next_li.get_text()
-            if el_type == 'li':
-                sections[i] = [match.find('a').get_text(), next_li]
-            else:
-                sections[i] = [match.get_text(), next_li]
-        last_li = soup.find_all(el_type)
-        if last_li is not None and len(last_li) > 1:
-            last_li = last_li[-1].get_text()
+            next_el = match.find_next(el_type)
+            if next_el:
+                next_el = next_el.get_text()
+            sections[i] = [match.get_text(), next_el]
+        last_el = soup.find_all(el_type)
+        if last_el is not None and len(last_el) > 1:
+            last_el = last_el[-1].get_text()
         else:
-            last_li = None
+            last_el = None
         next_after_abstract = None
-        if el_type == 'li':
-            next_after_abstract = soup.find(el_type)
-            if next_after_abstract is not None:
-                next_after_abstract = next_after_abstract.find('a').get_text()
-        else:
-            # we're searching the paper itself for headers
-            # this time, instead of the li document overview
-            # and thus logic is more complicated
-            abstract = soup.find(text=abstract_regex)
+        # we're searching the paper itself for headers
+        # this time, instead of the li document overview
+        # and thus logic is more complicated
+        abstract = soup.find(text=abstract_regex)
+        if abstract is not None:
+            abstract = abstract.find_parent(el_type)
             if abstract is not None:
-                abstract = abstract.find_parent(el_type)
-                if abstract is not None:
-                    next_after_abstract = abstract.find_next(el_type)
-                if next_after_abstract is not None:
-                    next_after_abstract = next_after_abstract.get_text()
-            if next_after_abstract == None:
-                next_after_abstract = soup.find_next(el_type)
-                if next_after_abstract is not None:
-                    next_after_abstract = next_after_abstract.get_text()
-        return [(abstract_regex, next_after_abstract)] + sections, last_li
+                next_after_abstract = abstract.find_next(el_type)
+            if next_after_abstract is not None:
+                next_after_abstract = next_after_abstract.get_text()
+        if next_after_abstract == None:
+            next_after_abstract = soup.find_next(el_type)
+            if next_after_abstract is not None:
+                next_after_abstract = next_after_abstract.get_text()
+        return [(abstract_regex, next_after_abstract)] + sections, last_el
         
 
 def convert_html_to_text(filename):
@@ -238,7 +261,7 @@ deduplicate them"""
 def extract_one_paper(paper_path, args, i):
     """extracts a single pdf to a text document or stdout"""
     # first convert pdf into 2 html documents
-    output_tmp_name = "/tmp/output"
+    output_tmp_name = args.temp_prefix
     remove_intermediaries(output_tmp_name)
     subprocess.run(["pdftohtml", "-i", "-s", paper_path, output_tmp_name], capture_output=True)
     # now we have created an index
@@ -252,7 +275,11 @@ def extract_one_paper(paper_path, args, i):
     # Title, Author, Universities
     metadata = extract_initial_metadata(output_tmp_name)
     title = metadata.split("\n")[0]
-    print("processing '{}' ({}/{})".format(title[:30] + "...", i, len(args.pdf)))
+    print("processing '{new_title}' ({src_title}) ({n}/{total})".format(
+        new_title=title[:30] + "...",
+        src_title=os.path.split(paper_path)[-1],
+        n=i,
+        total=len(args.pdf)))
     out = get_paper_txt_handle(args, title)
     out.write(metadata)
     out.write('\n')
@@ -260,10 +287,11 @@ def extract_one_paper(paper_path, args, i):
 
     text = convert_html_to_text(output_tmp_name + "-html.html")
     sections_to_find = ["intro", "conclu|summary|finding"]
-    sections, last_section = get_section_titles(output_tmp_name + "s.html", sections_to_find)
+    sections, last_section = get_section_titles_from_overview(
+        output_tmp_name + "s.html", sections_to_find)
     if sections.count(None) == len(sections_to_find):
         print("could not find any titles, searching again")
-        sections, last_section = get_section_titles(output_tmp_name + "-html.html", sections_to_find, 'b')
+        sections, last_section = get_section_titles_from_paper(output_tmp_name + "-html.html", sections_to_find, 'b')
 
     # attempt to remove references first (you wouldn't want to hear them in TTS)
 
@@ -292,7 +320,7 @@ def main(args):
         try:
             extract_one_paper(pdf, args, i + 1)
         except:
-            pass
+            traceback.print_exc()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -302,5 +330,6 @@ if __name__ == "__main__":
     parser.add_argument('--out-folder', help='folder in which to store summarized texts', default="./")
     parser.add_argument('--clean', help='whether to delete intermediary files', default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument('--debug-text', help='whether to write /tmp/output.txt debug file', default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--temp-prefix', help='destination of temporary files, prefix', default='/tmp/output')
     args = parser.parse_args()
     main(args)
