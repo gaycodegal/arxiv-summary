@@ -12,6 +12,17 @@ script, and then read with screen reader.
 Attempts to extract Title, a couple of Authors,
 Abstract, Introduction, and Conclusion.
 
+Meant for linux.
+
+To give context, 'some formats' means *only* scientific article
+formats that have an abstract, introduction, and conclusion.
+
+'Summarize' is not a magic term, this is not doing any
+textual analysis, its purely trying to pull out the
+abstract, introduction, and conclusion to the paper for you
+so that you can know what the paper contains should you
+ever want to give it a full read.
+
 ## Installation
 
 ```shell
@@ -25,10 +36,13 @@ sudo apt install poppler-utils
 ```
 
 ## Usage
-usage:
+
 ```
-basic-extractor.py [-h] [--out-folder OUT_FOLDER] [--clean | --no-clean] [--debug-text | --no-debug-text] pdf [pdf ...]
-```
+usage: basic-extractor.py [-h] [--out-folder OUT_FOLDER] [--clean | --no-clean]
+                          [--debug-text | --no-debug-text]
+                          [--temp-prefix TEMP_PREFIX]
+                          pdf [pdf ...]
+
 positional arguments:
   pdf                   the pdf of the paper to summarize like ./test.pdf
 
@@ -39,6 +53,33 @@ options:
   --clean, --no-clean   whether to delete intermediary files (default: True)
   --debug-text, --no-debug-text
                         whether to write /tmp/output.txt debug file (default: False)
+  --temp-prefix TEMP_PREFIX
+                        destination of temporary files, prefix
+```
+
+## Text to speech
+
+I'd recommend using https://github.com/foobnix/LibreraReader/releases
+ which is downloadable from there or https://f-droid.org/.
+
+I use it with the stock google voice `English (United States) > Voice V`
+which I find pleasant for reading long texts. You could also
+try RHVoice on android or on your computer, as well as Festvox/Festival
+on your computer, which has multiple voices to choose from if
+you install them, as well as the ability to convert text into
+a wav file with text2wav (configured using your festival dot file).
+Then convert the wav to mp3 to save on space if sending off to
+a phone.
+
+For any text to speech method you can always do:
+
+```
+cat *.txt > ../bundled_readings.txt
+```
+
+to combine individual text documents into one big document.
+This means you can play multiple documents without pause /
+in a row, if you really wanted to.
 
 ## Method
 
